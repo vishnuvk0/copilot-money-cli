@@ -1,5 +1,9 @@
 # Copilot Money Portfolio Tracker
 
+UPDATE: YOU DO NOT NEED THE MAC APP DOWNLOADED. THIS WILL FETCH THE TOKEN AS LONG AS YOU USE THE CLI. 
+
+THIS WILL STORE ALL THE INFO ABOUT YOUR INVESTMENTS TO A LOCAL DB. 
+
 A local portfolio analytics dashboard that syncs data from [Copilot Money](https://copilot.money) and provides performance metrics, allocation breakdowns, trade detection, and benchmark comparisons.
 
 ## Architecture
