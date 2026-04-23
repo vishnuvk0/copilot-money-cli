@@ -8,6 +8,7 @@ import sys
 from datetime import date
 
 import requests
+import copilot_client as cc
 
 BASE_URL = "http://localhost:8000"
 
@@ -420,6 +421,49 @@ def cmd_sync(args):
     print(f"\n  {c('Sync triggered', GREEN)}: {data.get('status', 'started')}\n")
 
 
+def cmd_auth_start(args):
+    if args.app_check_token or args.gmpid:
+        cc.configure_onboarding_values(args.app_check_token, args.gmpid)
+    data = cc.start_magic_link(args.email)
+    if args.json:
+        return {"status": "sent", "email": data.get("email")}
+    print(f"\n  {c('Magic link sent', GREEN)} to {data.get('email', args.email)}")
+    print("  Next: run `python api/cli.py auth complete --email <email> --magic-link <url>`\n")
+
+
+def cmd_auth_complete(args):
+    if args.app_check_token or args.gmpid:
+        cc.configure_onboarding_values(args.app_check_token, args.gmpid)
+    data = cc.complete_magic_link(args.email, args.magic_link)
+    accounts = cc.fetch_accounts()
+    sync = api("POST", "/api/investments/sync", args.base_url)
+    if args.json:
+        return {
+            "email": data.get("email"),
+            "accounts": len(accounts),
+            "sync_status": sync.get("status"),
+        }
+    print(f"\n  {c('Authenticated', GREEN)} as {data.get('email', args.email)}")
+    print(f"  Accounts available: {len(accounts)}")
+    print(f"  Sync status: {sync.get('status', 'started')}\n")
+
+
+def cmd_auth_status(args):
+    status = cc.get_auth_status()
+    if args.json:
+        return status
+    print(f"\n  {c('Auth Status', BOLD)}\n")
+    print(f"  Token present:         {'yes' if status['has_token'] else 'no'}")
+    print(f"  Refresh token present: {'yes' if status['has_refresh_token'] else 'no'}")
+    print(f"  App Check token set:   {'yes' if status['has_app_check_token'] else 'no'}")
+    if status.get("email"):
+        print(f"  Email:                 {status['email']}")
+    if status.get("expires_at"):
+        print(f"  Token expires at:      {status['expires_at']}")
+        print(f"  Token expired:         {'yes' if status['expired'] else 'no'}")
+    print()
+
+
 # ── Main ─────────────────────────────────────────────────────
 
 
@@ -489,7 +533,35 @@ def main():
     # sync
     sub.add_parser("sync", help="Trigger a data sync")
 
+    # auth onboarding
+    p = sub.add_parser("auth", help="Email-link onboarding and auth status")
+    auth_sub = p.add_subparsers(dest="auth_command", required=True)
+
+    p_start = auth_sub.add_parser("start", help="Send magic link to email")
+    p_start.add_argument("--email", required=True, help="Email for Copilot login")
+    p_start.add_argument("--app-check-token", help="Firebase App Check token from web request headers")
+    p_start.add_argument("--gmpid", help="Firebase GMPID override")
+
+    p_complete = auth_sub.add_parser("complete", help="Exchange magic link for tokens and sync")
+    p_complete.add_argument("--email", required=True, help="Email used for magic-link sign in")
+    p_complete.add_argument("--magic-link", required=True, help="Magic link copied from email")
+    p_complete.add_argument("--app-check-token", help="Firebase App Check token from web request headers")
+    p_complete.add_argument("--gmpid", help="Firebase GMPID override")
+
+    auth_sub.add_parser("status", help="Show local auth/token status")
+
     args = parser.parse_args()
+
+    if args.command == "auth":
+        auth_dispatch = {
+            "start": cmd_auth_start,
+            "complete": cmd_auth_complete,
+            "status": cmd_auth_status,
+        }
+        result = auth_dispatch[args.auth_command](args)
+        if args.json and result:
+            print(json.dumps(result, indent=2))
+        return
 
     dispatch = {
         "accounts": cmd_accounts,

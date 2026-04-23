@@ -17,18 +17,33 @@ frontend/     React + Vite dashboard — charts, holdings, performance metrics
 - Node.js 18+
 - A Copilot Money account
 
-### 1. Get your Copilot token
+### 1. Authenticate with onboarding CLI
 
-1. Log into [app.copilot.money](https://app.copilot.money) in your browser
-2. Open DevTools > Application > Cookies or Network tab
-3. Copy the Firebase auth token (starts with `eyJhbG...`)
-4. Create a `.env` file in the project root:
+Use the built-in onboarding flow instead of manually copying bearer tokens.
+
+1. Set your App Check token once (from Copilot web auth requests):
 
 ```
-COPILOT_TOKEN=Bearer eyJhbG...your_token_here
+COPILOT_APP_CHECK_TOKEN=eyJ...app_check_token...
 ```
 
-> Tokens expire after ~1 hour. Refresh from the Copilot web app when needed.
+2. Start email-link login:
+
+```bash
+cd api
+venv/bin/python cli.py auth start --email you@example.com
+```
+
+3. Paste the magic link from your email:
+
+```bash
+venv/bin/python cli.py auth complete --email you@example.com --magic-link "https://auth.copilot.money/__/auth/action?..."
+```
+
+This stores `COPILOT_TOKEN` and `COPILOT_REFRESH_TOKEN` in local `.env` and triggers an initial sync.
+
+> Tokens rotate automatically via refresh token during API calls.  
+> If refresh fails (revoked/expired), re-run the `auth start` / `auth complete` flow.
 
 ### 2. Install dependencies
 
@@ -83,9 +98,21 @@ make cli ARGS="trades --period 3M"
 # Trigger a data sync
 make cli ARGS="sync"
 
+# Onboard / auth flow
+make cli ARGS="auth status"
+make cli ARGS="auth start --email you@example.com"
+make cli ARGS="auth complete --email you@example.com --magic-link \"https://auth.copilot.money/__/auth/action?...\""
+
 # Raw JSON output
 make cli ARGS="--json holdings"
 ```
+
+## Multi-user + Cloud Notes
+
+- This flow works for any Copilot account, but each user must authenticate their own email and keep their own local `.env`.
+- Do not commit `.env` or share refresh tokens.
+- Current implementation is local-first by design (no hosted secret store).
+- For a future hosted onboarding service, plan for secure secret storage, per-user isolation, App Check token capture, and abuse/rate controls before public rollout.
 
 ## API Endpoints
 
